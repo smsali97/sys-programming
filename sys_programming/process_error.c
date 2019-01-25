@@ -9,7 +9,7 @@
 // # <-- These are called pre-processor directives
 
 // Why is this bad? Not debuggable / traceable
-#define MAX_LENGTH 50
+#define MAX_LENGTH 55
 
 #include <unistd.h>
 #include <string.h>
