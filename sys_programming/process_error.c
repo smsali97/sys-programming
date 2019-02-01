@@ -15,7 +15,7 @@
 #include <string.h>
 #include <errno.h>
 
-int main(int argc, char **argv) {
+int main3(int argc, char **argv) {
 
 	char name[] = "HELLO";
 	int size = strlen(name);
