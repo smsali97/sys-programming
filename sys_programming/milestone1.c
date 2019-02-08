@@ -14,16 +14,17 @@
 #include <string.h>
 #include <stdlib.h>
 
-int main(int argc, char **argv) {
+int milestone1() {
 	const int SIZE = 100;
 	char buff[SIZE];
+
 
 	while (true) {
 		// picks number of bytes from buffer and reads it
 		int no = read(STDIN_FILENO, buff, SIZE);
 
 		// Error handling
-		if (no == 0) {
+		if (no == -1) {
 			perror("ERROR: ");
 			exit(1);
 		}
