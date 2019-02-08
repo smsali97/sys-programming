@@ -21,10 +21,14 @@
 int main(int argc, char **argv) {
 
 	// Take source filename input
+
 	const int SIZE = 1000;
 	char buff[SIZE];
-	int no = read(STDIN_FILENO, buff, SIZE);
 
+	int no = sprintf(buff, "Please enter source file\n");
+	write(STDOUT_FILENO, buff, no);
+
+	no = read(STDIN_FILENO, buff, SIZE);
 	if (no == -1) {
 		perror("Error");
 		return 1;
@@ -33,6 +37,10 @@ int main(int argc, char **argv) {
 	sscanf(buff, "%[^\n]", inFileName);
 
 	// Take destination filename input
+
+	no = sprintf(buff, "Please enter destination file\n");
+	write(STDOUT_FILENO, buff, no);
+
 	no = read(STDIN_FILENO, buff, SIZE);
 	if (no == -1) {
 		perror("Error");
@@ -49,14 +57,14 @@ int main(int argc, char **argv) {
 	}
 
 	// The file to be written
-	int dfd = open(outFileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+	int dfd = open(outFileName, O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
 	if (dfd == -1) {
 		perror("Error");
 		return 4;
 	}
 
 	// Reading buffer
-	int BUFF_SIZE = 10;
+	int BUFF_SIZE = 1000;
 	ssize_t ret;
 
 	// START TIME
@@ -72,6 +80,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		no = write(dfd, buff, ret);
+//		fsync(dfd);
 		if (no == -1) {
 			perror("ERROR");
 			return 6;
@@ -79,9 +88,9 @@ int main(int argc, char **argv) {
 	}
 	clock_t toc = clock();
 
-	double elapsedTime = (toc - tic)* 1000.0 / CLOCKS_PER_SEC ;
+	double elapsedTime = (toc - tic) / CLOCKS_PER_SEC;
 
-	no = sprintf(buff, "The elapsed time in ms is %f \n",elapsedTime);
+	no = sprintf(buff, "The 1000 byte buffer took: %f \n", elapsedTime);
 	write(STDOUT_FILENO, buff, no);
 
 	// Clean up work
@@ -98,7 +107,7 @@ int main(int argc, char **argv) {
 	}
 
 	// The file to be written
-	dfd = open(outFileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+	dfd = open(outFileName, O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
 	if (dfd == -1) {
 		perror("Error");
 		return 4;
@@ -106,7 +115,6 @@ int main(int argc, char **argv) {
 
 	// Reading buffer
 	BUFF_SIZE = 1;
-
 
 	// START TIME
 	tic = clock();
@@ -121,6 +129,7 @@ int main(int argc, char **argv) {
 			}
 		}
 		no = write(dfd, buff, ret);
+//		fsync(dfd);
 		if (no == -1) {
 			perror("ERROR");
 			return 6;
@@ -128,11 +137,14 @@ int main(int argc, char **argv) {
 	}
 	toc = clock();
 
-	double elapsedTime2 = (toc - tic)* 1000.0 / CLOCKS_PER_SEC ;
+	double elapsedTime2 = (toc - tic) / CLOCKS_PER_SEC;
 
-	no = sprintf(buff, "The elapsed time in ms is %f \n",elapsedTime2);
+	no = sprintf(buff, "The 1 byte buffer took: %f \n", elapsedTime2);
 	write(STDOUT_FILENO, buff, no);
 
+	no = sprintf(buff, "The time difference in seconds is %f \n",
+			elapsedTime2 - elapsedTime);
+	write(STDOUT_FILENO, buff, no);
 	// Clean up work
 	close(sfd);
 	close(dfd);
