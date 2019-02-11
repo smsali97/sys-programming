@@ -18,7 +18,7 @@
 #include <string.h>
 #include <time.h>
 
-int main(int argc, char **argv) {
+int main10(int argc, char **argv) {
 
 	// Take source filename input
 
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 	}
 
 	// The file to be written
-	int dfd = open(outFileName, O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
+	int dfd = open(outFileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
 	if (dfd == -1) {
 		perror("Error");
 		return 4;
@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 	}
 
 	// The file to be written
-	dfd = open(outFileName, O_WRONLY | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
+	dfd = open(outFileName, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
 	if (dfd == -1) {
 		perror("Error");
 		return 4;
