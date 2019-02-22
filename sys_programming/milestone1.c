@@ -14,10 +14,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-int milestone1() {
-	const int SIZE = 100;
-	char buff[SIZE];
+int main(void) {
 
+	const int SIZE = 30;
+	char buff[SIZE];
+	bool errFlag = false;
 
 	while (true) {
 		// picks number of bytes from buffer and reads it
@@ -25,14 +26,14 @@ int milestone1() {
 
 		// Error handling
 		if (no == -1) {
-			perror("ERROR: ");
+			perror("READ ERROR: ");
 			exit(1);
 		}
 
 		// To take input
 		char str[no - 1];
 		// Delimiter for token breaking
-		const char delimiter[2] = " ";
+		const char delimiter[1] = " ";
 		char* token;
 		sscanf(buff, "%[^\n]", str);
 
@@ -43,23 +44,37 @@ int milestone1() {
 		double result = atoi(token);
 
 		// Terminate condition
-		if (!result) {
-			no = sprintf(buff, "BYE BYE!\n");
-			write(STDERR_FILENO, buff, no);
-			exit(0);
-		}
+
 
 		// Float to store result with temporary number;
 		double value;
 
 		// Get Next Tokens
 		while ((token = strtok(NULL, delimiter)) != NULL) {
+
+			for (int i = 0; token[i] != '\0'; i++) {
+				if (!isdigit(token[i])) {
+					errFlag = 1;
+					break;
+				}
+			}
+
+			if (errFlag) {
+				no = sprintf(buff,
+						"There was a non-digit character in your input\n");
+				write(STDOUT_FILENO, buff, no);
+			}
+
 			// perform relevant operation
 			value = atoi(token);
 			result += value;
 		}
 
-		no = sprintf(buff, "The answer is: %.2f \n", result);
-		write(STDOUT_FILENO, buff, no);
+		if (!errFlag) {
+
+			no = sprintf(buff, "The answer is: %.2f \n", result);
+			write(STDOUT_FILENO, buff, no);
+		}
 	}
 }
+

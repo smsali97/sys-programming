@@ -18,7 +18,7 @@
 #include <string.h>
 #include <time.h>
 
-int main10(int argc, char **argv) {
+int main(int argc, char **argv) {
 
 	// Take source filename input
 
