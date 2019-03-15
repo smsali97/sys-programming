@@ -3,9 +3,13 @@
  *
  *  Created on: Feb 9, 2019
  *      Author: sualeh
+ *
+ *      Seeing patterns of His and Hellos with Fork
  */
+#include <sys/types.h>
+#include <unistd.h>
 
-int main20(int argc, char **argv) {
+int main(int argc, char **argv) {
 	int pid;
 
 	int a = 20;
@@ -16,6 +20,7 @@ int main20(int argc, char **argv) {
 
 	if (pid == 0) {
 		pid = fork();
+		// Parent
 		if (pid > 0)
 			printf("HELLO\n");
 		a = 30;

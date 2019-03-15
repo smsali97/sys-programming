@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
-int main34(int argc, char **argv) {
+int main(int argc, char **argv) {
 
 	int f1 = open("abc",O_RDWR);
 	int f2;

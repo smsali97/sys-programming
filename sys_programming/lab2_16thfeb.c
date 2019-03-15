@@ -3,6 +3,8 @@
  *
  *  Created on: Feb 16, 2019
  *      Author: sualeh
+ *
+ *  Using exec to pass argument to another process (lab2_16thfeb.c)
  */
 
 #include <unistd.h>
