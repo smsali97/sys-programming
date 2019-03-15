@@ -5,9 +5,23 @@
  *      Author: sualeh
  *
  *      Seeing patterns of His and Hellos with Fork
+ *
+ *      OUTPUT:
+ *      HI
+ *      HI
+ *      20
+ *      --
+ *      HI
+ *      HELLO
+ *      HI
+ *      30
+ *      --
+ *      HI
+ *      30
  */
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdio.h>
 
 int main(int argc, char **argv) {
 	int pid;
