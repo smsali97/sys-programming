@@ -2,7 +2,7 @@
  * lab1_4thmarch.c
  *
  *  Created on: Mar 4, 2019
- *      Author: sualeh
+ *      Author: Alina's Code!
  */
 
 #include <stdio.h>

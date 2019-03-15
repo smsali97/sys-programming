@@ -10,15 +10,17 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdio.h>
-#include <sys/types.h>e
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <stdlib.h>
 
 int main(int argc, char **argv) {
 	int fd = open("mytext.txt", O_WRONLY);
 
 	if (fd == -1) {
 		perror("OPEN ERROR");
+		exit(1);
 	}
 
 	int ret;
@@ -27,12 +29,14 @@ int main(int argc, char **argv) {
 
 	if (ret == -1) {
 		perror("WRITE ERROR");
+		exit(2);
 	}
 
 	ret = execl("sad", "7", (char*)  NULL);
 
 	if (ret == -1) {
 		perror("EXEC ERROR");
+		exit(3);
 	}
 	return 0;
 }

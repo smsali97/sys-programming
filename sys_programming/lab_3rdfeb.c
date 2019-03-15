@@ -20,7 +20,7 @@ int main(int argc, char argv[]) {
 	if (pid == -1)
 		return -1;
 	else if (pid == 0) {
-		execv("/usr/bin/gedit", NULL);
+		execl("/usr/bin/gedit", NULL);
 	}
 	if (waitpid(pid, &status, 0) == -1)
 		return -1;

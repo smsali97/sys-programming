@@ -38,6 +38,7 @@ int main(void) {
 		int forkStatus = fork();
 		if (forkStatus == -1) {
 			perror("FORK");
+			exit(1);
 		}
 		if (forkStatus == 0) {
 			no = read(STDIN_FILENO, buff, SIZE);
