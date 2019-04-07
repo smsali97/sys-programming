@@ -23,7 +23,7 @@ typedef struct my_process {
 	int pid;
 	char * name;
 	bool isActive;
-	bool isValid = true;
+	bool isValid;
 	time_t startingTime;
 	time_t endingTime;
 
@@ -43,6 +43,7 @@ void my_arithmetic(int sign);
 void my_run();
 void my_list();
 void my_kill();
+void signal_handler(int sig_no);
 
 // Number of bytes read/written
 int no, ret;
@@ -61,7 +62,6 @@ int main(int argc, char *argv[]) {
 	const char mul[] = "mul";
 	const char div[] = "div";
 	const char kill[] = "kill";
-
 
 	while (true) {
 		no = read(STDIN_FILENO, buff, SIZE);
@@ -199,14 +199,8 @@ void my_run() {
 		write(STDOUT_FILENO, buff, no);
 
 		// send data
-
-		process_arr[ctr].pid = getpid();
-		process_arr[ctr].isActive = true;
-		process_arr[ctr].name = strdup(next_token);
-		time(&process_arr[ctr++].startingTime);
-
-		no = sprintf(buff, "%d\n", ctr);
-			write(STDOUT_FILENO, buff, no);
+		no = sprintf(buff, "%d", getpid());
+		no = write(my_pipe[1], buff, SIZE);
 
 		no = execlp(next_token, NULL);
 		if (no == -1) {
@@ -227,8 +221,22 @@ void my_run() {
 	}
 	// parent process
 	else {
+		close(my_pipe[1]);
+
 		no = sprintf(buff, "I'm a parent with id %d! \n", getpid());
 		write(STDOUT_FILENO, buff, no);
+
+		int created_pid;
+
+		no = read(my_pipe[0], buff, SIZE);
+		no = sscanf(buff, "%d", &created_pid);
+
+		process_arr[ctr].pid = created_pid;
+		process_arr[ctr].isActive = true;
+		process_arr[ctr].name = strdup(next_token);
+		time(&process_arr[ctr++].startingTime);
+
+		close(my_pipe[1]);
 	}
 
 }
@@ -236,15 +244,24 @@ void my_run() {
 void my_list() {
 	char buff[SIZE];
 
+	bool allProccesses = false;
+
+	char* next_token = strtok(NULL, delimiter);
+	if (next_token != NULL && strcmp(next_token,"all") == 0) {
+		allProccesses = true;
+	}
+
 	no = sprintf(buff, "Total processes so far: %d\n", ctr);
 	no = write(STDOUT_FILENO, buff, no);
 
 	no =
 			sprintf(buff,
-					"Name  \t pid \tactive\tStarting Time \t Ending Time\t Elapsed Time\n");
+					"    Name   \t pid \tactive\tStarting Time \t Ending Time\t Elapsed Time\n");
 	no = write(STDOUT_FILENO, buff, no);
 
 	for (int i = 0; i < ctr; i++) {
+
+		if (!allProccesses && !process_arr[i].isActive) continue;
 
 		float diff = difftime(process_arr[i].endingTime,
 				process_arr[i].startingTime);
@@ -259,9 +276,9 @@ void my_list() {
 		strftime(s, 9, "%X", gmtime(&process_arr[i].startingTime));
 		strftime(e, 9, "%X", gmtime(&process_arr[i].endingTime));
 
-		no = sprintf(buff, "%s %lu\t%s\t %s \t %9s \t %f \n",
+		no = sprintf(buff, "%8s \t %lu\t%s\t %s \t %9s \t %f \n",
 				process_arr[i].name, process_arr[i].pid,
-				process_arr[i].isActive ? "true" : "false", s,
+				process_arr[i].isActive ? "\x1B[32mtrue\x1B[0m" : "\x1B[31mfalse\x1B[0m", s,
 				process_arr[i].isActive ? "--:--:--" : e, diff);
 		no = write(STDOUT_FILENO, buff, no);
 	}
@@ -271,5 +288,66 @@ void my_list() {
 }
 
 void my_kill() {
+	char buff[SIZE];
 
+	char* next_token = strtok(NULL, delimiter);
+	if (next_token == NULL) {
+		no = sprintf(buff, "No argument provided to kill! \n");
+		write(STDOUT_FILENO, buff, no);
+		return;
+	}
+
+	bool isPid = true;
+	for (int i = 0; next_token[i] != '\0'; i++) {
+		if (!isdigit(next_token[i])) {
+			isPid = false;
+			break;
+		}
+	}
+
+	if (isPid) {
+		int k_pid = atoi(next_token);
+		no = kill(k_pid, 0);
+		if (no == -1) {
+			if (errno == ESRCH) {
+				no = sprintf(buff, "Invalid pid! \n");
+				write(STDOUT_FILENO, buff, no);
+				return;
+			} else if (errno == EPERM) {
+				no = sprintf(buff, "Not allowed to kill! \n");
+				write(STDOUT_FILENO, buff, no);
+				return;
+			}
+		}
+
+		for (int i = 0; i < ctr; i++) {
+			if (k_pid == process_arr[i].pid) {
+				no = kill(process_arr[i].pid, SIGTERM);
+				if (no == -1) {
+					perror("kill");
+				}
+				process_arr[i].isActive = false;
+			    time ( &process_arr[i].endingTime);
+				return;
+			}
+		}
+
+		no = sprintf(buff, "Couldnt find your pid!\n");
+		write(STDOUT_FILENO, buff, no);
+	} else {
+		for (int i = 0; i < ctr; i++) {
+			if (strcmp(next_token, process_arr[i].name) == 0) {
+
+				no = kill(process_arr[i].pid, SIGTERM);
+				if (no == -1) {
+					perror("kill");
+				}
+				process_arr[i].isActive = false;
+			    time ( &process_arr[i].endingTime);
+				return;
+			}
+		}
+		no = sprintf(buff, "Couldnt find your process name!\n");
+		write(STDOUT_FILENO, buff, no);
+	}
 }
