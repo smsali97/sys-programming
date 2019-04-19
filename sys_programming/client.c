@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
             exit(1);
         }
         // receive output from server
-            no = read(sock_fd, buf, no);
+            no = read(sock_fd, buf, BUF_SIZE);
             if (no == -1 ) {
                 perror("read: ");
             }

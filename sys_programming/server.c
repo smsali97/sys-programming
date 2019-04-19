@@ -4,7 +4,7 @@
  *  Created on: Apr 5, 2019
  *      Author: sualeh
  */
-
+#define _GNU_SOURCE
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <wait.h>
 #include <signal.h>
 #include <errno.h>
 #include <unistd.h>
@@ -23,6 +24,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
+
 
 #define MY_PORT 8000
 #define BUF_SIZE 1024
@@ -54,7 +56,7 @@ void my_arithmetic(int sign);
 void my_run();
 void my_list();
 void my_kill();
-void signal_handler(int sig_no);
+void my_signal_handler(int sig_no);
 
 // Number of bytes read/written
 int no, ret, sock_fd;
@@ -76,7 +78,10 @@ int main(int argc, char **argv) {
 	const char div[] = "div";
 	const char kill[] = "kill";
 
+	// signal handling
+	signal(SIGCHLD,&my_signal_handler); // if child unexpectedly terminates
 
+	
 	int ret;
     int osock_fd = socket(AF_INET,SOCK_STREAM, 0);
 	if (osock_fd == -1) {
@@ -234,27 +239,29 @@ void my_arithmetic(int sign) {
 }
 
 void my_run() {
+
+
 	char buff[SIZE];
 
 	if (ctr == MAX_LIMIT) {
 		no =
 				sprintf(buff,
 						"I'm sorry my process table is full. I cannot create anymore processes!\n");
-		write(STDOUT_FILENO, buff, no);
+		write(sock_fd, buff, no);
 		return;
 	}
 
 	char* next_token = strtok(NULL, " ");
 	if (next_token == NULL) {
-		no = sprintf(buff, "No argument provided! \n");
-		write(STDOUT_FILENO, buff, no);
+		no = sprintf(sock_fd, "No argument provided! \n");
+		write(sock_fd, buff, no);
 		return;
 	}
 
 
 	// Create a pipe
 	int my_pipe[2];
-	pipe(my_pipe);
+	pipe2(my_pipe,O_CLOEXEC);
 
 	int my_pid = fork();
 	if (my_pid == -1) {
@@ -267,11 +274,7 @@ void my_run() {
 
 		no = sprintf(buff, "I'm a child with name %s! My id is %d\n My parent's id is %d\n",
 				next_token, getpid(), getppid());
-		write(STDOUT_FILENO, buff, no);
-
-		// send data
-		no = sprintf(buff, "%d", getpid());
-		no = write(my_pipe[1], buff, SIZE);
+		write(sock_fd, buff, no);
 
 		no = execlp(next_token, NULL);
 		if (no == -1) {
@@ -279,12 +282,14 @@ void my_run() {
 				no = execl(next_token, NULL);
 				if (no == -1) {
 					perror("EXECL FAILED TOO: ");
-					ctr--; // delete the entry
+					// delete the entry
+					no = sprintf(buff,"FAILED");
+					no = write(my_pipe[1],buff,no);
 					return;
 				}
 			} else {
 				perror("EXECLP FAILED");
-				ctr--; // delete the entry
+				// delete the entry
 				return;
 			}
 		}
@@ -295,14 +300,16 @@ void my_run() {
 		close(my_pipe[1]);
 
 		no = sprintf(buff, "I'm a parent with id %d! \n", getpid());
-		write(STDOUT_FILENO, buff, no);
+		write(sock_fd, buff, no);
 
 		int created_pid;
 
 		no = read(my_pipe[0], buff, SIZE);
-		no = sscanf(buff, "%d", &created_pid);
+		if (no > 0) {
+			return;
+		}
 
-		process_arr[ctr].pid = created_pid;
+		process_arr[ctr].pid = my_pid;
 		process_arr[ctr].isActive = true;
 		process_arr[ctr].name = strdup(next_token);
 		time(&process_arr[ctr++].startingTime);
@@ -323,13 +330,10 @@ void my_list() {
 	}
 
 	no = sprintf(buff, "Total processes so far: %d\n", ctr);
-	no = write(STDOUT_FILENO, buff, no);
-
-	no =
-			sprintf(buff,
+	no +=
+			sprintf(buff + no,
 					"    Name   \t pid \tactive\tStarting Time \t Ending Time\t Elapsed Time\n");
-	no = write(STDOUT_FILENO, buff, no);
-
+	
 	for (int i = 0; i < ctr; i++) {
 
 		if (!allProccesses && !process_arr[i].isActive) continue;
@@ -347,13 +351,13 @@ void my_list() {
 		strftime(s, 9, "%X", gmtime(&process_arr[i].startingTime));
 		strftime(e, 9, "%X", gmtime(&process_arr[i].endingTime));
 
-		no = sprintf(buff, "%8s \t %lu\t%s\t %s \t %9s \t %f \n",
+		no += sprintf(buff + no, "%8s \t %lu\t%s\t %s \t %9s \t %f \n",
 				process_arr[i].name, process_arr[i].pid,
 				process_arr[i].isActive ? "\x1B[32mtrue\x1B[0m" : "\x1B[31mfalse\x1B[0m", s,
 				process_arr[i].isActive ? "--:--:--" : e, diff);
-		no = write(STDOUT_FILENO, buff, no);
+		
 	}
-
+	no = write(sock_fd, buff, no);
 	return;
 
 }
@@ -361,10 +365,10 @@ void my_list() {
 void my_kill() {
 	char buff[SIZE];
 
-	char* next_token = strtok(NULL, delimiter);
+	char* next_token = strtok(NULL, " ");
 	if (next_token == NULL) {
 		no = sprintf(buff, "No argument provided to kill! \n");
-		write(STDOUT_FILENO, buff, no);
+		write(sock_fd, buff, no);
 		return;
 	}
 
@@ -382,11 +386,11 @@ void my_kill() {
 		if (no == -1) {
 			if (errno == ESRCH) {
 				no = sprintf(buff, "Invalid pid! \n");
-				write(STDOUT_FILENO, buff, no);
+				write(sock_fd, buff, no);
 				return;
 			} else if (errno == EPERM) {
 				no = sprintf(buff, "Not allowed to kill! \n");
-				write(STDOUT_FILENO, buff, no);
+				write(sock_fd, buff, no);
 				return;
 			}
 		}
@@ -404,7 +408,8 @@ void my_kill() {
 		}
 
 		no = sprintf(buff, "Couldnt find your pid!\n");
-		write(STDOUT_FILENO, buff, no);
+		write(sock_fd, buff, no);
+		return;
 	} else {
 		for (int i = 0; i < ctr; i++) {
 			if (strcmp(next_token, process_arr[i].name) == 0) {
@@ -419,6 +424,20 @@ void my_kill() {
 			}
 		}
 		no = sprintf(buff, "Couldnt find your process name!\n");
-		write(STDOUT_FILENO, buff, no);
+		write(sock_fd, buff, no);
 	}
+}
+
+void my_signal_handler (int sig_no) {
+
+	if (sig_no == SIGCHLD) {
+		for(size_t i = 0; i < ctr; i++)
+		{
+			if (process_arr[i].isActive && waitpid(process_arr[i].pid,NULL,WNOHANG) > 0 ) {
+					process_arr[i].isActive = false;
+					time ( &process_arr[i].endingTime);
+			}
+		}
+	}
+	
 }
