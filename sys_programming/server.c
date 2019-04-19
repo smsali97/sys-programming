@@ -78,8 +78,8 @@ int main(int argc, char **argv) {
 
 
 	int ret;
-    sock_fd = socket(AF_INET,SOCK_STREAM, 0);
-	if (sock_fd == -1) {
+    int osock_fd = socket(AF_INET,SOCK_STREAM, 0);
+	if (osock_fd == -1) {
 		perror("socket: ");
 		exit(1);
 	}
@@ -94,13 +94,13 @@ int main(int argc, char **argv) {
 	// convert to network order
 	my_server.sin_port = htons(MY_PORT);
 
-	ret = bind(sock_fd, (struct sockaddr *) &my_server, sizeof(my_server));
+	ret = bind(osock_fd, (struct sockaddr *) &my_server, sizeof(my_server));
 	if (ret == -1) {
 		perror("bind: ");
 		exit(1);
 	}
 
-	ret = listen(sock_fd,Q_LEN);
+	ret = listen(osock_fd,Q_LEN);
 	if (ret == -1) {
 		perror("listen: ");
 		exit(1);
@@ -114,8 +114,8 @@ int main(int argc, char **argv) {
 			exit(0);
 		}
 
-		int accepted_sock_fd = accept(sock_fd, (struct sockaddr *) &my_clients[peer_ctr++], &(len));
-		if (accepted_sock_fd == -1) {
+		sock_fd = accept(osock_fd, (struct sockaddr *) &my_clients[peer_ctr++], &(len));
+		if (sock_fd == -1) {
 			perror("accept");
 			exit(1);
 		}
@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
 		else {
 			// child connection
 			while (true) {
-				no = read(accepted_sock_fd,buff,BUF_SIZE);
+				no = read(sock_fd,buff,BUF_SIZE);
 				if (no == -1) { perror("read: "); exit(1); }
 				if (no == 0) { exit(0); }
 				
@@ -176,7 +176,7 @@ void my_arithmetic(int sign) {
 			no = sprintf(buff,
 					"There was a non-digit character '%c' in your input\n",
 					token[i]);
-			write(STDOUT_FILENO, buff, no);
+			write(sock_fd, buff, no);
 			return;
 		}
 	}
@@ -192,7 +192,7 @@ void my_arithmetic(int sign) {
 				no = sprintf(buff,
 						"There was a non-digit character '%c' in your input\n",
 						token[i]);
-				write(STDOUT_FILENO, buff, no);
+				write(sock_fd, buff, no);
 				return;
 			}
 		}
@@ -215,7 +215,7 @@ void my_arithmetic(int sign) {
 				no =
 						sprintf(buff,
 								"Tch. You're bad at maths. This is division by zero! \n");
-				write(STDOUT_FILENO, buff, no);
+				write(sock_fd, buff, no);
 				return;
 			}
 			result /= value;
@@ -227,6 +227,9 @@ void my_arithmetic(int sign) {
 
 	no = sprintf(buff, "The answer is: %.2f \n", result);
 	write(STDOUT_FILENO, buff, no);
+
+	no = sprintf(buff, "The answer is: %.2f \n", result);
+	write(sock_fd, buff, no);
 
 }
 

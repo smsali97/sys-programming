@@ -37,16 +37,32 @@ int main(int argc, char **argv) {
     }
 
     while (true) {
+        // get input from stdin
         int no = read(STDIN_FILENO, buf, BUF_SIZE);
         if (no == -1) {
             perror("read: ");
             exit(1);
         }
+        // write it to the server
         no = write(sock_fd, buf, no);
         if (no == -1) {
             perror("write: ");
             exit(1);
         }
+        // receive output from server
+            no = read(sock_fd, buf, no);
+            if (no == -1 ) {
+                perror("read: ");
+            }
+            else if (no == 0) break;
+            else {
+                // then write it back
+                no = write(STDOUT_FILENO,buf,no);
+                if (no == -1) {
+                    perror("write: ");
+                }
+            }
+        
 
     }
     
