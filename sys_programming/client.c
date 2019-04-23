@@ -14,12 +14,17 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <stdbool.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #define MY_PORT 8000
 #define BUF_SIZE 1024
 int main(int argc, char **argv) {
     char buf[BUF_SIZE];
     
+    int fd = open("printy",O_RDONLY);
+    int no = read(fd,buf,BUF_SIZE);
+    no = write(STDOUT_FILENO,buf,no);
     int sock_fd = socket(AF_INET,SOCK_STREAM,0);
     if (sock_fd == -1) {
         perror("socket: ");
@@ -62,9 +67,9 @@ int main(int argc, char **argv) {
                     perror("write: ");
                 }
             }
-        
-
     }
+    no = sprintf(buf,"Exiting...\n");
+    no = write(STDOUT_FILENO,buf,no);
     
 
 }

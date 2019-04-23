@@ -24,11 +24,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <time.h>
-
+#include <poll.h>
 
 #define MY_PORT 8000
 #define BUF_SIZE 1024
-#define Q_LEN 5
+#define Q_LEN 50
 const int SIZE = 1000;
 
 
@@ -49,13 +49,13 @@ my_process process_arr[MAX_LIMIT];
 
 // Delimiter for token breaking
 #define delimiter " "
-char* token;
 
 // prototypes of my function
-void my_arithmetic(int sign);
-void my_run();
-void my_list();
-void my_kill();
+void my_arithmetic(int sign, char* token);
+void my_run(char* token);
+void my_list(char* token);
+void my_kill(char* token);
+void my_help();
 void my_signal_handler(int sig_no);
 
 // Number of bytes read/written
@@ -68,6 +68,8 @@ int peer_ctr = 0;
 int main(int argc, char **argv) {
 	char buff[BUF_SIZE];
 
+
+	// list of client commands
 	const char add[] = "add";
 	const char run[] = "run";
 	const char quit[] = "exit";
@@ -78,10 +80,13 @@ int main(int argc, char **argv) {
 	const char div[] = "div";
 	const char kill[] = "kill";
 
+	// list of server commands
+
+
 	// signal handling
 	signal(SIGCHLD,&my_signal_handler); // if child unexpectedly terminates
-
 	
+
 	int ret;
     int osock_fd = socket(AF_INET,SOCK_STREAM, 0);
 	if (osock_fd == -1) {
@@ -99,12 +104,14 @@ int main(int argc, char **argv) {
 	// convert to network order
 	my_server.sin_port = htons(MY_PORT);
 
+	// bind socket with port and ip
 	ret = bind(osock_fd, (struct sockaddr *) &my_server, sizeof(my_server));
 	if (ret == -1) {
 		perror("bind: ");
 		exit(1);
 	}
 
+	// start listening
 	ret = listen(osock_fd,Q_LEN);
 	if (ret == -1) {
 		perror("listen: ");
@@ -119,6 +126,7 @@ int main(int argc, char **argv) {
 			exit(0);
 		}
 
+		// waiting to accept connections
 		sock_fd = accept(osock_fd, (struct sockaddr *) &my_clients[peer_ctr++], &(len));
 		if (sock_fd == -1) {
 			perror("accept");
@@ -137,32 +145,34 @@ int main(int argc, char **argv) {
 				sscanf(buff, "%[^\n]", str);
 
 				// Get first token
-				token = strtok(str, delimiter);
+				char *token = strtok(str, delimiter);
 
 				// Evaluate token
 				if (strcmp(token, add) == 0) {
-					my_arithmetic(1);
+					my_arithmetic(1,token);
 				} else if (strcmp(token, sub) == 0) {
-					my_arithmetic(2);
+					my_arithmetic(2,token);
 				} else if (strcmp(token, mul) == 0) {
-					my_arithmetic(3);
+					my_arithmetic(3, token);
 				} else if (strcmp(token, div) == 0) {
-					my_arithmetic(4);
+					my_arithmetic(4, token);
 				} else if (strcmp(token, run) == 0) {
-					my_run();
+					my_run(token);
 				} else if (strcmp(token, list) == 0) {
-					my_list();
+					my_list(token);
 				} else if (strcmp(token, kill) == 0) {
-					my_kill();
+					my_kill(token);
 				} else if (strcmp(token, quit) == 0) {
 					no = sprintf(buff, "Bye!\n");
-					write(STDOUT_FILENO, buff, no);
+					close(sock_fd);
+					write(sock_fd, buff, no);
 					exit(0);
+				} else if (strcmp(token,help) == 0) {
+					my_help();
 				} else {
 					no = sprintf(buff, "Invalid Command \n");
-					write(STDOUT_FILENO, buff, no);
+					write(sock_fd, buff, no);
 				}
-
 			}
 		}
 	}
@@ -171,11 +181,13 @@ int main(int argc, char **argv) {
 }
 
 
-void my_arithmetic(int sign) {
+void my_arithmetic(int sign, char* token) {
 	char buff[SIZE];
 
 	// Float to store result with temporary number;
 	token = strtok(NULL, delimiter);
+	if (token == NULL) return;
+
 	for (int i = 0; token[i] != '\0'; i++) {
 		if (!isdigit(token[i])) {
 			no = sprintf(buff,
@@ -238,7 +250,7 @@ void my_arithmetic(int sign) {
 
 }
 
-void my_run() {
+void my_run(char* token) {
 
 
 	char buff[SIZE];
@@ -253,7 +265,7 @@ void my_run() {
 
 	char* next_token = strtok(NULL, " ");
 	if (next_token == NULL) {
-		no = sprintf(sock_fd, "No argument provided! \n");
+		no = sprintf(buff, "No argument provided! \n");
 		write(sock_fd, buff, no);
 		return;
 	}
@@ -272,9 +284,9 @@ void my_run() {
 	else if (my_pid == 0) {
 		close(my_pipe[0]);
 
-		no = sprintf(buff, "I'm a child with name %s! My id is %d\n My parent's id is %d\n",
-				next_token, getpid(), getppid());
-		write(sock_fd, buff, no);
+//		no = sprintf(buff, "I'm a child with name %s! My id is %d\n My parent's id is %d\n",
+//				next_token, getpid(), getppid());
+//		write(sock_fd, buff, no);
 
 		no = execlp(next_token, NULL);
 		if (no == -1) {
@@ -299,13 +311,15 @@ void my_run() {
 	else {
 		close(my_pipe[1]);
 
-		no = sprintf(buff, "I'm a parent with id %d! \n", getpid());
-		write(sock_fd, buff, no);
+//		no = sprintf(buff, "I'm a parent with id %d! \n", getpid());
+//		write(sock_fd, buff, no);
 
 		int created_pid;
 
 		no = read(my_pipe[0], buff, SIZE);
 		if (no > 0) {
+			no = sprintf(buff,"Exec failed\n");
+			no = write(sock_fd,buff,no);
 			return;
 		}
 
@@ -315,11 +329,13 @@ void my_run() {
 		time(&process_arr[ctr++].startingTime);
 
 		close(my_pipe[1]);
+		no = sprintf(buff,"Run successful\n");
+		no = write(sock_fd,buff,no);
 	}
 
 }
 
-void my_list() {
+void my_list(char* token) {
 	char buff[SIZE];
 
 	bool allProccesses = false;
@@ -362,7 +378,7 @@ void my_list() {
 
 }
 
-void my_kill() {
+void my_kill(char* token) {
 	char buff[SIZE];
 
 	char* next_token = strtok(NULL, " ");
@@ -403,6 +419,8 @@ void my_kill() {
 				}
 				process_arr[i].isActive = false;
 			    time ( &process_arr[i].endingTime);
+				no = sprintf(buff, "Killed successfully!\n");
+				write(sock_fd, buff, no);
 				return;
 			}
 		}
@@ -420,6 +438,8 @@ void my_kill() {
 				}
 				process_arr[i].isActive = false;
 			    time ( &process_arr[i].endingTime);
+				no = sprintf(buff, "Killed successfully!\n");
+				write(sock_fd, buff, no);
 				return;
 			}
 		}
@@ -440,4 +460,17 @@ void my_signal_handler (int sig_no) {
 		}
 	}
 	
+}
+
+void my_help() {
+	char buff[10000];
+	int no = sprintf(buff,"list [all] \t lists running processes for that client. If 'all' is followed it lists all the processes for that client\nrun <process_name> \t runs the process specified by 'process_name'\nkill <pid/process_name> Kills the process specified by the 'pid' or 'process_name'\nadd <list of integers>\t");
+	int no2 = sprintf(buff + no," Adds list of integers for example n1 n2 n3 (delimited by space)\nsub <list of integers> \t Subtract list of integers for example n1 n2 n3 (delimited by space)\nmul <list of integers> \t Multiplies list of integers for example n1 n2 n3 (delimited by space)\ndiv <list of integers> \t Divides list of integers for example n1 n2 n3 (delimited by space)\nexit \t Disconnects from server and exits\n");
+	no = write(sock_fd,buff,no + no2);
+
+
+	if (no == -1) {
+		perror("write");
+		exit(1);
+	}
 }
