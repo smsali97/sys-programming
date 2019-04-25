@@ -25,12 +25,12 @@
 #include <fcntl.h>
 #include <time.h>
 #include <poll.h>
+#include <arpa/inet.h>
 
 #define MY_PORT 8000
 #define BUF_SIZE 1024
-#define Q_LEN 50
-const int SIZE = 1000;
-
+#define Q_LEN 20
+const int SIZE = BUF_SIZE;
 
 typedef struct my_process {
 	int pid;
@@ -58,16 +58,27 @@ void my_kill(char* token);
 void my_help();
 void my_signal_handler(int sig_no);
 
+void my_clist(char* token);
+void my_print(char* token);
+void my_cexit(char* token);
+
 // Number of bytes read/written
 int no, ret, sock_fd;
 
 // Struct for storing peer addresses
-struct sockaddr_in peer_addresses[Q_LEN];
+typedef struct my_client {
+	struct sockaddr_in peerSocket;
+	bool isActive;
+	time_t startingTime;
+	time_t endingTime;
+	int sock_fd;
+} my_client;
+
+my_client my_clients[Q_LEN];
 int peer_ctr = 0;
 
 int main(int argc, char **argv) {
 	char buff[BUF_SIZE];
-
 
 	// list of client commands
 	const char add[] = "add";
@@ -81,14 +92,21 @@ int main(int argc, char **argv) {
 	const char kill[] = "kill";
 
 	// list of server commands
-
+	const char print[] = "print";
+	const char cexit[] = "cexit";
+	const char clist[] = "clist";
 
 	// signal handling
-	signal(SIGCHLD,&my_signal_handler); // if child unexpectedly terminates
-	
+	signal(SIGCHLD, &my_signal_handler); // if child unexpectedly terminates
+
+	// Struct For multiplexing socket fds
+	struct pollfd pfds[2];
+	// stdin
+	pfds[0].fd = STDIN_FILENO;
+	pfds[0].events = POLLIN;
 
 	int ret;
-    int osock_fd = socket(AF_INET,SOCK_STREAM, 0);
+	int osock_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (osock_fd == -1) {
 		perror("socket: ");
 		exit(1);
@@ -96,10 +114,9 @@ int main(int argc, char **argv) {
 
 	// structure for Internet sock address
 	struct sockaddr_in my_server;
-	struct sockaddr_in my_clients[peer_ctr];
 
 	my_server.sin_family = AF_INET;
-	// binding for localhost
+	// binding for ip address
 	my_server.sin_addr.s_addr = htonl(INADDR_ANY);
 	// convert to network order
 	my_server.sin_port = htons(MY_PORT);
@@ -112,81 +129,192 @@ int main(int argc, char **argv) {
 	}
 
 	// start listening
-	ret = listen(osock_fd,Q_LEN);
+	ret = listen(osock_fd, Q_LEN);
 	if (ret == -1) {
 		perror("listen: ");
 		exit(1);
 	}
-	int len = sizeof(my_clients[peer_ctr]);
-	while (true) {
-		int no;
-		if (peer_ctr == Q_LEN) {
-			no = sprintf(buff,"PEERS LIMIT EXCEEDED!\n");
-			no = write(STDOUT_FILENO,buff,no);
-			exit(0);
-		}
 
-		// waiting to accept connections
-		sock_fd = accept(osock_fd, (struct sockaddr *) &my_clients[peer_ctr++], &(len));
-		if (sock_fd == -1) {
-			perror("accept");
-			exit(1);
+	no = sprintf(buff, "Connected on %s on %d port....\n",
+			inet_ntoa(my_server.sin_addr), ntohs(my_server.sin_port));
+	no = write(STDOUT_FILENO, buff, no);
+
+	pfds[1].fd = osock_fd;
+	pfds[1].events = POLLIN;
+
+	// ignore unused fds
+//	for (int i = 2; i < Q_LEN; i++) {
+//		pfds[i].fd = -1;
+//	}
+
+	int len = sizeof(my_clients[peer_ctr].peerSocket);
+	while (true) {
+		int pstatus = poll(pfds, 2, -1);
+		if (pstatus < 0) {
+			perror("poll: ");
 		}
-		int pid_child = fork();
-		if (pid_child > 0) continue;
-		else {
-			// child connection
-			while (true) {
-				no = read(sock_fd,buff,BUF_SIZE);
-				if (no == -1) { perror("read: "); exit(1); }
-				if (no == 0) { exit(0); }
-				
+		if (pstatus > 0) {
+			if (pfds[1].revents & POLLIN) {
+				int no;
+				if (peer_ctr == Q_LEN) {
+					no = sprintf(buff, "PEERS LIMIT EXCEEDED!\n");
+					no = write(STDOUT_FILENO, buff, no);
+					exit(0);
+				}
+				// waiting to accept connections
+				sock_fd = accept(osock_fd,
+						(struct sockaddr *) &my_clients[peer_ctr].peerSocket,
+						&(len));
+				if (sock_fd == -1) {
+					perror("accept");
+					exit(1);
+				}
+				my_clients[peer_ctr].sock_fd = sock_fd;
+				my_clients[peer_ctr].isActive = true;
+				time(&my_clients[peer_ctr++].startingTime);
+				int pid_child = fork();
+				if (pid_child > 0)
+					continue;
+				else {
+					ctr = 0; // initialize running processes to zero
+					// child connection
+					while (true) {
+						no = read(sock_fd, buff, BUF_SIZE);
+						if (no == -1) {
+							perror("read: ");
+							exit(1);
+						}
+						if (no == 0) {
+							exit(0);
+						}
+
+						char str[no - 1];
+						sscanf(buff, "%[^\n]", str);
+
+						// Get first token
+						char *token = strtok(str, delimiter);
+
+						// Evaluate token
+						if (strcmp(token, add) == 0) {
+							my_arithmetic(1, token);
+						} else if (strcmp(token, sub) == 0) {
+							my_arithmetic(2, token);
+						} else if (strcmp(token, mul) == 0) {
+							my_arithmetic(3, token);
+						} else if (strcmp(token, div) == 0) {
+							my_arithmetic(4, token);
+						} else if (strcmp(token, run) == 0) {
+							my_run(token);
+						} else if (strcmp(token, list) == 0) {
+							my_list(token);
+						} else if (strcmp(token, kill) == 0) {
+							my_kill(token);
+						} else if (strcmp(token, quit) == 0) {
+							no = sprintf(buff, "Bye!\n");
+							close(sock_fd);
+							write(sock_fd, buff, no);
+							exit(0);
+						} else if (strcmp(token, help) == 0) {
+							my_help();
+						} else {
+							no = sprintf(buff, "Invalid Command \n");
+							write(sock_fd, buff, no);
+						}
+					}
+				}
+
+			}
+			// read data from stdin
+			else if (pfds[0].revents & POLLIN) {
+				int no = read(STDIN_FILENO, buff, SIZE);
 				char str[no - 1];
 				sscanf(buff, "%[^\n]", str);
-
 				// Get first token
 				char *token = strtok(str, delimiter);
 
 				// Evaluate token
-				if (strcmp(token, add) == 0) {
-					my_arithmetic(1,token);
-				} else if (strcmp(token, sub) == 0) {
-					my_arithmetic(2,token);
-				} else if (strcmp(token, mul) == 0) {
-					my_arithmetic(3, token);
-				} else if (strcmp(token, div) == 0) {
-					my_arithmetic(4, token);
-				} else if (strcmp(token, run) == 0) {
-					my_run(token);
-				} else if (strcmp(token, list) == 0) {
-					my_list(token);
-				} else if (strcmp(token, kill) == 0) {
-					my_kill(token);
-				} else if (strcmp(token, quit) == 0) {
-					no = sprintf(buff, "Bye!\n");
-					close(sock_fd);
-					write(sock_fd, buff, no);
-					exit(0);
-				} else if (strcmp(token,help) == 0) {
-					my_help();
-				} else {
-					no = sprintf(buff, "Invalid Command \n");
-					write(sock_fd, buff, no);
+				if (strcmp(token, clist) == 0) {
+					my_clist(token);
+				} else if (strcmp(token, print) == 0) {
+					my_print(token);
+				} else if (strcmp(token, cexit) == 0) {
+					my_cexit(token);
 				}
+
 			}
 		}
 	}
 
+}
+
+void my_cexit(char* token) {
+	char buf[SIZE];
+	char* ip = strtok(NULL, delimiter);
+	if (ip == NULL) {
+		for (int i = 0; i < peer_ctr && my_clients[i].isActive; i++) {
+			no = sprintf(buf, "exit");
+			no = write(my_clients[i].sock_fd, buf, no);
+		}
+	}
 
 }
 
+void my_print(char* token) {
+	char buf[SIZE];
+	char* printMessage = strtok(NULL, delimiter);
+	char* ip = strtok(NULL, delimiter);
+
+	if (printMessage == NULL) {
+		int no = sprintf(buf, "No message provided!");
+		no = write(STDOUT_FILENO, buf, no);
+		return;
+	}
+	if (ip == NULL) {
+		for (int i = 0; i < peer_ctr && my_clients[i].isActive; i++) {
+			no = sprintf(buf, "message: %s\n", printMessage);
+			no = write(my_clients[i].sock_fd, buf, no);
+		}
+	} else {
+		char *temp;
+		for (int i = 0; i < peer_ctr && my_clients[i].isActive; i++) {
+			inet_ntop(AF_INET, &(my_clients[i].peerSocket.sin_addr), temp,
+					INET_ADDRSTRLEN);
+			if (strcmp(temp, ip) == 0) {
+				no = sprintf(buf, "print message: %s\n", printMessage);
+				int no2 = write(my_clients[i].sock_fd, buf, no);
+				no = write(my_clients[i].sock_fd, buf, no);
+			}
+		}
+	}
+}
+
+void my_clist(char* token) {
+	char buff[SIZE];
+
+	no = sprintf(buff, "Total clients so far: %d\n", peer_ctr);
+	no += sprintf(buff + no, "    I.P   \tactive\tStarting Time\n");
+	for (int i = 0; i < peer_ctr; i++) {
+		char s[9];
+		strftime(s, 9, "%X", gmtime(&process_arr[i].startingTime));
+
+		no += sprintf(buff + no, "%10s \t %s \t %8s \n",
+				inet_ntoa(my_clients[i].peerSocket.sin_addr),
+				my_clients[i].isActive ?
+						"\x1B[32mtrue\x1B[0m" : "\x1B[31mfalse\x1B[0m", s);
+
+	}
+	no = write(STDOUT_FILENO, buff, no);
+	return;
+
+}
 
 void my_arithmetic(int sign, char* token) {
 	char buff[SIZE];
 
 	// Float to store result with temporary number;
 	token = strtok(NULL, delimiter);
-	if (token == NULL) return;
+	if (token == NULL)
+		return;
 
 	for (int i = 0; token[i] != '\0'; i++) {
 		if (!isdigit(token[i])) {
@@ -252,7 +380,6 @@ void my_arithmetic(int sign, char* token) {
 
 void my_run(char* token) {
 
-
 	char buff[SIZE];
 
 	if (ctr == MAX_LIMIT) {
@@ -270,10 +397,10 @@ void my_run(char* token) {
 		return;
 	}
 
-
 	// Create a pipe
+
 	int my_pipe[2];
-	pipe2(my_pipe,O_CLOEXEC);
+	pipe2(my_pipe, O_CLOEXEC);
 
 	int my_pid = fork();
 	if (my_pid == -1) {
@@ -295,8 +422,8 @@ void my_run(char* token) {
 				if (no == -1) {
 					perror("EXECL FAILED TOO: ");
 					// delete the entry
-					no = sprintf(buff,"FAILED");
-					no = write(my_pipe[1],buff,no);
+					no = sprintf(buff, "FAILED");
+					no = write(my_pipe[1], buff, no);
 					return;
 				}
 			} else {
@@ -318,8 +445,8 @@ void my_run(char* token) {
 
 		no = read(my_pipe[0], buff, SIZE);
 		if (no > 0) {
-			no = sprintf(buff,"Exec failed\n");
-			no = write(sock_fd,buff,no);
+			no = sprintf(buff, "Exec failed\n");
+			no = write(sock_fd, buff, no);
 			return;
 		}
 
@@ -329,8 +456,8 @@ void my_run(char* token) {
 		time(&process_arr[ctr++].startingTime);
 
 		close(my_pipe[1]);
-		no = sprintf(buff,"Run successful\n");
-		no = write(sock_fd,buff,no);
+		no = sprintf(buff, "Run successful\n");
+		no = write(sock_fd, buff, no);
 	}
 
 }
@@ -341,18 +468,19 @@ void my_list(char* token) {
 	bool allProccesses = false;
 
 	char* next_token = strtok(NULL, delimiter);
-	if (next_token != NULL && strcmp(next_token,"all") == 0) {
+	if (next_token != NULL && strcmp(next_token, "all") == 0) {
 		allProccesses = true;
 	}
 
-	no = sprintf(buff, "Total processes so far: %d\n", ctr);
+	no = sprintf(buff, "Actual total processes so far: %d\n", ctr);
 	no +=
 			sprintf(buff + no,
 					"    Name   \t pid \tactive\tStarting Time \t Ending Time\t Elapsed Time\n");
-	
+
 	for (int i = 0; i < ctr; i++) {
 
-		if (!allProccesses && !process_arr[i].isActive) continue;
+		if (!allProccesses && !process_arr[i].isActive)
+			continue;
 
 		float diff = difftime(process_arr[i].endingTime,
 				process_arr[i].startingTime);
@@ -369,9 +497,10 @@ void my_list(char* token) {
 
 		no += sprintf(buff + no, "%8s \t %lu\t%s\t %s \t %9s \t %f \n",
 				process_arr[i].name, process_arr[i].pid,
-				process_arr[i].isActive ? "\x1B[32mtrue\x1B[0m" : "\x1B[31mfalse\x1B[0m", s,
+				process_arr[i].isActive ?
+						"\x1B[32mtrue\x1B[0m" : "\x1B[31mfalse\x1B[0m", s,
 				process_arr[i].isActive ? "--:--:--" : e, diff);
-		
+
 	}
 	no = write(sock_fd, buff, no);
 	return;
@@ -418,7 +547,7 @@ void my_kill(char* token) {
 					perror("kill");
 				}
 				process_arr[i].isActive = false;
-			    time ( &process_arr[i].endingTime);
+				time(&process_arr[i].endingTime);
 				no = sprintf(buff, "Killed successfully!\n");
 				write(sock_fd, buff, no);
 				return;
@@ -437,37 +566,44 @@ void my_kill(char* token) {
 					perror("kill");
 				}
 				process_arr[i].isActive = false;
-			    time ( &process_arr[i].endingTime);
+				time(&process_arr[i].endingTime);
 				no = sprintf(buff, "Killed successfully!\n");
 				write(sock_fd, buff, no);
 				return;
 			}
 		}
-		no = sprintf(buff, "Couldnt find your process name!\n");
+		no = sprintf(buff, "Couldn't find your process name!\n");
 		write(sock_fd, buff, no);
 	}
 }
 
-void my_signal_handler (int sig_no) {
+void my_signal_handler(int sig_no) {
+
+	char buf[SIZE];
+	int no = sprintf(buf, "Signal occurred\n", no);
+	no = write(STDOUT_FILENO, buf, no);
 
 	if (sig_no == SIGCHLD) {
-		for(size_t i = 0; i < ctr; i++)
-		{
-			if (process_arr[i].isActive && waitpid(process_arr[i].pid,NULL,WNOHANG) > 0 ) {
-					process_arr[i].isActive = false;
-					time ( &process_arr[i].endingTime);
+		for (size_t i = 0; i < ctr; i++) {
+			if (process_arr[i].isActive
+					&& waitpid(process_arr[i].pid, NULL, WNOHANG) > 0) {
+				process_arr[i].isActive = false;
+				time(&process_arr[i].endingTime);
 			}
 		}
 	}
-	
+
 }
 
 void my_help() {
 	char buff[10000];
-	int no = sprintf(buff,"list [all] \t lists running processes for that client. If 'all' is followed it lists all the processes for that client\nrun <process_name> \t runs the process specified by 'process_name'\nkill <pid/process_name> Kills the process specified by the 'pid' or 'process_name'\nadd <list of integers>\t");
-	int no2 = sprintf(buff + no," Adds list of integers for example n1 n2 n3 (delimited by space)\nsub <list of integers> \t Subtract list of integers for example n1 n2 n3 (delimited by space)\nmul <list of integers> \t Multiplies list of integers for example n1 n2 n3 (delimited by space)\ndiv <list of integers> \t Divides list of integers for example n1 n2 n3 (delimited by space)\nexit \t Disconnects from server and exits\n");
-	no = write(sock_fd,buff,no + no2);
-
+	int no =
+			sprintf(buff,
+					"list [all] \t lists running processes for that client. If 'all' is followed it lists all the processes for that client\nrun <process_name> \t runs the process specified by 'process_name'\nkill <pid/process_name> Kills the process specified by the 'pid' or 'process_name'\nadd <list of integers>\t");
+	int no2 =
+			sprintf(buff + no,
+					" Adds list of integers for example n1 n2 n3 (delimited by space)\nsub <list of integers> \t Subtract list of integers for example n1 n2 n3 (delimited by space)\nmul <list of integers> \t Multiplies list of integers for example n1 n2 n3 (delimited by space)\ndiv <list of integers> \t Divides list of integers for example n1 n2 n3 (delimited by space)\nexit \t Disconnects from server and exits\n");
+	no = write(sock_fd, buff, no + no2);
 
 	if (no == -1) {
 		perror("write");
