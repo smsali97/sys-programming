@@ -25,8 +25,8 @@ int main(int argc, char* argv[]) {
     char buf[BUF_SIZE];
     int no;
     // usage
-    if (argc != 2) {
-    	no = sprintf(buf,"Plese enter an IP address in the dotted format\n");
+    if (argc != 3) {
+    	no = sprintf(buf,"Please enter an IP address in the dotted format and Port number\n");
     	no = write(STDOUT_FILENO,buf,no);
     	exit(1);
     }
@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     	no = write(STDOUT_FILENO,buf,no);
     	exit(1);
     }
-    server_addr.sin_port = htons(MY_PORT);
+    server_addr.sin_port = htons(atoi(argv[2]));
     server_addr.sin_family = AF_INET;
 
     int ret = connect(sock_fd, (struct sockaddr *) &server_addr, sizeof(server_addr));
@@ -84,6 +84,12 @@ int main(int argc, char* argv[]) {
             no = read(sock_fd, buf, BUF_SIZE);
             if (no == -1 ) {
                 perror("read: ");
+            }
+            else if (no == 0) {
+                no = sprintf(buf,"Disconnected from Server\n");
+                no = write(STDOUT_FILENO,buf,no);
+                close(sock_fd);
+                exit(1);
             }
             char* check_input;
 

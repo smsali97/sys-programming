@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
 	// binding for ip address
 	my_server.sin_addr.s_addr = htonl(INADDR_ANY);
 	// convert to network order
-	my_server.sin_port = htons(MY_PORT);
+//	my_server.sin_port = htons(MY_PORT);
 
 	// bind socket with port and ip
 	ret = bind(osock_fd, (struct sockaddr *) &my_server, sizeof(my_server));
@@ -227,6 +227,12 @@ int main(int argc, char **argv) {
 			// read data from stdin
 			else if (pfds[0].revents & POLLIN) {
 				int no = read(STDIN_FILENO, buff, SIZE);
+
+				if (no == 0) {
+					no = sprintf(buff, "Invalid Command \n");
+					write(STDOUT_FILENO, buff, no);
+					continue;
+				}
 				char str[no - 1];
 				sscanf(buff, "%[^\n]", str);
 				// Get first token
@@ -239,6 +245,9 @@ int main(int argc, char **argv) {
 					my_print(token);
 				} else if (strcmp(token, cexit) == 0) {
 					my_cexit(token);
+				} else {
+					no = sprintf(buff, "Invalid Command \n");
+					write(STDOUT_FILENO, buff, no);
 				}
 
 			}
@@ -281,8 +290,8 @@ void my_print(char* token) {
 					INET_ADDRSTRLEN);
 			if (strcmp(temp, ip) == 0) {
 				no = sprintf(buf, "print message: %s\n", printMessage);
-				int no2 = write(my_clients[i].sock_fd, buf, no);
-				no = write(my_clients[i].sock_fd, buf, no);
+				int no2 = write(STDOUT_FILENO, buf, no);
+				no = write(my_clients[i].sock_fd, buf, no2);
 			}
 		}
 	}
