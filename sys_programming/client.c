@@ -142,7 +142,7 @@ int main(int argc, char* argv[]) {
 void my_signal_handler(int sig_no) {
 
 	char buf[BUF_SIZE];
-	int no = sprintf(buf, "Signal occurred\n", no);
+	int no = sprintf(buf, "Signal occurred\n");
 	no = write(STDOUT_FILENO, buf, no);
 
 	if (sig_no == SIGINT && sock_fd != -1 ) {
