@@ -62,6 +62,7 @@ void my_print(char* token);
 void my_cexit(char* token);
 
 void killEverybody();
+void imLeaving(int sig, siginfo_t *si,  void* ucontext);
 
 // Number of bytes read/written
 int no, ret;
@@ -176,17 +177,27 @@ int main(int argc, char **argv) {
 					perror("accept");
 					exit(1);
 				}
+				// if child exits give me the signal
+				struct sigaction sa;
+				sigemptyset(&sa.sa_mask);
+				sa.sa_sigaction = &imLeaving;
+				sa.sa_flags = SA_SIGINFO;
+
+				sigaction(SIGUSR2,&sa,NULL);
+
 				int pid_child = fork();
 				if (pid_child > 0) {
 					my_clients[peer_ctr].sock_fd = sock_fd;
 					my_clients[peer_ctr].isActive = true;
 					time(&my_clients[peer_ctr].startingTime);
 					my_clients[peer_ctr++].pid = pid_child;
+
+
 					continue;
 				}
 				else {
 					// signal handling
-					signal(SIGCHLD, &my_signal_handler); // if child unexpectedly terminates
+					signal(SIGCHLD, &my_signal_handler); // if child unexpectedly terminates aka X button
 
 					ctr = 0; // initialize running processes to zero
 					// child connection
@@ -204,6 +215,16 @@ int main(int argc, char **argv) {
 									time(&my_clients[i].endingTime);
 								}
 							}
+							no = sprintf(buff,"Client has left ..\n");
+							no = write(STDOUT_FILENO,buff,no);
+
+							// send the signal to my parent!
+							union sigval sv;
+							sv.sival_int = getpid();
+							if (sigqueue(getppid(),SIGUSR2, sv) != 0) {
+								perror("sig-queue");
+							}
+
 							exit(0);
 						}
 
@@ -700,18 +721,10 @@ void my_kill(char* token) {
 
 void my_exit() {
 	char buf[SIZE];
-	for (int i = 0; i < peer_ctr; i++) {
-		printf("%d %d",sock_fd,my_clients[i].sock_fd);
-		if (my_clients[i].sock_fd == sock_fd) {
-			no = sprintf(buf, "sock_disconnect\n");
-			no = write(my_clients[i].sock_fd, buf, no);
-			killEverybody();
-			return;
-		}
-	}
-
-	no = sprintf(buf, "Couldn't exit! \n");
+	no = sprintf(buf, "sock_disconnect\n");
 	no = write(sock_fd, buf, no);
+	killEverybody();
+	return;
 
 }
 
@@ -750,6 +763,19 @@ void my_help() {
 	if (no == -1) {
 		perror("write");
 		exit(1);
+	}
+}
+
+
+void imLeaving(int sig, siginfo_t *si,  void* ucontext) {
+	int exited_pid = si->si_value.sival_int;
+	if (sig == SIGUSR2) {
+		for (int i = 0; i < peer_ctr; i++) {
+			if (my_clients[i].pid == exited_pid) {
+				my_clients[i].isActive = false;
+				time(&my_clients[i].endingTime);
+			}
+		}
 	}
 }
 

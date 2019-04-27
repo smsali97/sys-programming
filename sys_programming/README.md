@@ -2,7 +2,7 @@
 
 
 ## Introduction
-This is a multi procesed and multiplexed Client Server TCP Application that supports process management, client server messaging and maintenance.
+This is a multi procesed and multiplexed interactive Client Server TCP Application that supports process management, client server messaging and maintenance of processes created.
 
 
 ## Choice of Architecture
@@ -13,9 +13,13 @@ The architecture that I have employed in this project is a multi-processed serve
 
 Similarly, I have also decided to incorporate multiplexing on the client side as well. The reason being is that as you can see the client too can receve two different types of input: one which is sent by the stdin to the client which it forwards to the server and then gets the output and redirects that to the stdout. The second type of input is when the server sends a special command (for example, if the server wants to close the socket it can use the same socket to indicate a special type of input only addressed to the client and it can parse it and take the appropiate action accordingly (in this case, close the socket).
 
-In conjuction with that, I also had to utilize some signalling mechanisms as a tool to indicate other processes of certain events. Particularly there were two cases where signals proved handy. The first one being when I had to indiciate that a client process is being terminated so as part of the cleanup, close any running processes that it may have to avoid them being zombies. Secondly was to use signals as a way to tell the client that if a child is terminated without using the command it can update its process table accordingly.
+In conjuction with that, I also had to utilize some signalling mechanisms as a tool to indicate other processes of certain events. Particularly there were three cases where signals proved handy.
+1. The first one being when I had to indiciate that a client process is being terminated so as part of the cleanup, close any running processes that it may have to avoid them being zombies.
+2. Secondly was to use signals as a way to tell the client that if a child is terminated without using the command it can update its process table accordingly.
+3. And lastly whenever the client tells the subserver to leave, it tells the main server through a signal that its leaving, and it should update its clients table as well.
 
-The reason I decided to opt out of using multi-threading in the project was although a popula choice by many, I was as per the project spec able to use Multiplexing and some signalling mechanisms alone to achieve the project goals. While it is completely possible to do the same process with threads, the necessity for threads personally didn't substantiate much since there was no need of aspects like parallelism to be included in the project.
+
+The reason I decided to opt out of using multi-threading in the project was although a popular choice by many, I was as per the project spec able to use Multiplexing and some signalling mechanisms alone to achieve the project goals. While it is completely possible to do the same process with threads, the necessity for threads personally didn't substantiate much since there was no need of aspects like parallelism to be included in the project.
 
 
 ## Help
