@@ -7,7 +7,7 @@ This is a multi procesed and multiplexed interactive Client Server TCP Applicati
 
 ## Choice of Architecture
 
-![Systems Programming Diagram](diagram.jpg "Architecture Diagram")
+![Systems Programming Diagram](https://rmlhbw.ch.files.1drv.com/y4mFQ5ezYRLosjRuJKlYvI4hlr1Kxgl1BAvMZEkVA1FocrAGxUy-4Jj8ntLJ3bDIkrP-mi_3NbG49JBjYyipJjlFNRlgrqmyClFBayepIej78ZB5SkW3cpzJkXHksSxitbzJY3iiqEn-9RDUut9iIJX6uypzu1KrjxViIlpX30EoGFMK6C1vYcpJVXXkdz9-gLWFwJ6D7kaWbpQaBrFri6EZA?width=1072&height=604&cropmode=none "Architecture Diagram")
 
 The architecture that I have employed in this project is a multi-processed server with multiplexing I/O on both client and server-side. The reason I had to incorporate Multiplexing from both sides is because as you can see in the diagram, the server-side receives a combination of two parallel I/O input streams: one is the user interacting with the main-server (through stdin) and the other is the interaction with the client through the socket. To facilitate both interactions it is necessary for us to make sure the I/O can choose between two with which one is available.
 
@@ -32,28 +32,29 @@ To view a list of commands type help on the client/server to view the list of av
 
 ## Features
 
-| Command                | Description                         | Type  |
-|:----------------------:|:-----------------------------------:|:-----:|
-| add [n1 n2 n3 n4]      | Adds list of integers               |Client |
-| sub [n1 n2 n3 n4       | Subtracts list of integers          |Client |
-| mul [n1 n2 n3 n4]      | Multiplies list of integers         |Client |
-| div [n1 n2 n3 n4]      | Divides list of integers            |Client |
-| run <process_name>     | Subtracts list of integers          |Client |
-| list [all]             | Lists [all] the processes           |Client |
-| kill <process_name/pid>| Kills processspecified by name/pid  |Client |
-| exit                   | Exits the client                    |Client |
-| help                   | Shows available command             | Both  |
-| clist [all]            | Lists [all] the clients             | Server|
-| print [ip address]     | prints message [to specified ip]    | Server|
-| cexit [ip address]     | exits the client [of specified ip]  | Server|
+| Command                    | Description                                              | Type  |
+|:--------------------------:|:--------------------------------------------------------:|:-----:|
+| add [n1 n2 n3 n4]          | Adds list of integers                                |Client |
+| sub [n1 n2 n3 n4           | Subtracts list of integers                           |Client |
+| mul [n1 n2 n3 n4]          | Multiplies list of integers                          |Client |
+| div [n1 n2 n3 n4]          | Divides list of integers                             |Client |
+| run <process_name>         | Subtracts list of integers                           |Client |
+| list [all]                 | Lists [all] the processes                            |Client |
+| kill <process_name/pid/all>| Kills [all] of the processses specified by name/pid  |Client |
+| exit                       | Exits the client                    |Client |
+| help                       | Shows available command             | Both  |
+| clist [all]                | Lists [all] the clients             | Server|
+| print [ip address]         | prints message [to specified ip]    | Server|
+| cexit [ip address]         | exits the client [of specified ip]  | Server|
 
 ## Limitations
 Following are some of the limitations of my project
-- The data structure I have employed for both the storing of the running processes and peers is a struct array, hence is fixed size in length. However, one advanage by doing that is I have fixated a maximum number of peers that will be allowed for a given server to avoid excessive load. This limitation can easily be overcome by using a dynamic data structure (for example, a linked list).
-- At the moment, if the input provided to the client exceeds the buffer size, I ignore it and take a fresh new input. While this avoids buffer overfow attacks, another alternative approach would be to use a dynamic buffer size to vary depending upon the input given.
-- The current project only works on IPv4 addresses. IPv6 support can be added on a later date.
-- Another limitation of the project is that it assumes *sock_disconect* is a keyword that wont be used by the server and hence uses that as a communication tool to indicate a special message only intended for the client. 
+* The data structure I have employed for both the storing of the running processes and peers is a struct array, hence is fixed size in length. However, one advanage by doing that is I have fixated a maximum number of peers that will be allowed for a given server to avoid excessive load. This limitation can easily be overcome by using a dynamic data structure (for example, a linked list).
+* At the moment, if the input provided to the client exceeds the buffer size, I ignore it and take a fresh new input. While this avoids buffer overfow attacks, another alternative approach would be to use a dynamic buffer size to vary depending upon the input given.
+* The current project only works on IPv4 addresses. IPv6 support can be added on a later date.
+* Another limitation of the project is that it assumes *sock_disconect* is a keyword that wont be used by the server and hence uses that as a communication tool to indicate a special message only intended for the client. 
 
 ## Special Stuff (For Bonus Marks!)
 1. Pretty formatted the table and outputs to make it consistent and readable using ASCII style stuff
 2. I have done some error handling for the arithmetic tasks (flags error for alphabetic characters in input, division by zero, etc)
+3. Used advance signal management to send data *(aka sigqueues)* and polling *(Multiplexed I/O)* all of the stuff on my own ;)
