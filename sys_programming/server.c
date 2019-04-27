@@ -322,7 +322,7 @@ void my_cexit(char* token) {
 			if (my_clients[i].isActive) {
 				char* temp = inet_ntoa(my_clients[i].peerSocket.sin_addr);
 				if (strcmp(temp, ip) == 0 && my_clients[i].isActive) {
-					no = kill(SIGUSR1,my_clients[i].pid);
+					no = kill(my_clients[i].pid,SIGUSR1);
 					if (no == -1) {
 						perror("kill");
 						return;
