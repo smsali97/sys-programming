@@ -369,11 +369,12 @@ void my_print(char* token) {
 				if (strcmp(temp, ip) == 0) {
 					no = sprintf(buf, "print message: %s\n", printMessage);
 					no = write(my_clients[i].sock_fd, buf, no);
+					no = sprintf(buf, "Message sent!\n",SIZE);
+					no = write(STDOUT_FILENO,buf,no);
+
 				}
 			}
 		}
-		no = sprintf(buf, "Message sent!\n",SIZE);
-		no = write(STDOUT_FILENO,buf,no);
 	}
 }
 
