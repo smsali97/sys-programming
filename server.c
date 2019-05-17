@@ -114,6 +114,7 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
+
 	// structure for Internet sock address
 	struct sockaddr_in my_server;
 
